@@ -36,7 +36,7 @@ import preproc
 
 
 
-def build_model(scenarios, E_0):
+def build_model(scenarios, probabilities, E_0):
     model = pyo.ConcreteModel()
 
     # Parameters
@@ -50,11 +50,12 @@ def build_model(scenarios, E_0):
 
     # Scenario-specific components
     model.scenarios = pyo.RangeSet(0, num_scenarios - 1)
+    # model.probabilities = pyo.Set(initialize = probabilities)
     model.P_da = pyo.Param(model.scenarios, initialize={i: scenarios[i][0] for i in range(num_scenarios)})
     model.P_rt = pyo.Param(model.scenarios, initialize={i: scenarios[i][1] for i in range(num_scenarios)})
     model.E_1 = pyo.Param(model.scenarios, initialize={i: scenarios[i][2] for i in range(num_scenarios)})
     model.random_factor = pyo.Param(model.scenarios, initialize={i: scenarios[i][3] for i in range(num_scenarios)})
-
+    model.prob = pyo.Param(model.scenarios, initialize={i: probabilities[i] for i in range(num_scenarios)})
     # Second-stage decision variables
     def q_rt_bounds(model, s):
         return model.E_1[s]
@@ -198,7 +199,7 @@ def build_model(scenarios, E_0):
     model.nonanti_scen = pyo.Set(initialize=nonanti_scen_list) #model에 저장
     # Objective Function
     def objective_rule(model):
-        return sum((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * P_r) for s in model.scenarios)/len(model.scenarios)
+        return sum(model.prob[s]*((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * P_r)) for s in model.scenarios)
 
     model.objective = pyo.Objective(rule=objective_rule, sense=pyo.maximize)
 
@@ -210,8 +211,8 @@ def calculate_profit(model, idx):
         pyo.value(model.f_max[idx]) - (pyo.value(model.m1_Im[idx]) * pyo.value(model.m4_Im[idx])) +
         pyo.value(model.z[idx]) * P_r
     )
-def solve_sp_model(scenarios, new_E_0):
-    model = build_model(scenarios, new_E_0)
+def solve_sp_model(scenarios, probabilities, new_E_0):
+    model = build_model(scenarios, probabilities, new_E_0)
     model.E_0 = new_E_0
     solver = pyo.SolverFactory('gurobi')
     solver.options['NonConvex'] = 2
@@ -239,20 +240,50 @@ M = 10**6
 
 new_E_0_values = [10000, 8000, 12000]
 
-scenarios = preproc.regenerate_scenarios(new_E_0_values[1], sample_size=100)
+scenarios = preproc.regenerate_scenarios(new_E_0_values[1], sample_size=200)
 for scen in scenarios:
     print(scen)
 
 
 arrays = list(zip(*scenarios))
+arrays = np.asarray(arrays)
+arr1 = np.array(arrays[0]) #P da
+arr2 = np.array(arrays[1]) #P rt
+arr3 = np.array(arrays[2]) #E1 (Q da)
+arr4 = np.array(arrays[3]) #Q3
 
-arr1 = list(np.array(arrays[0]))
-arr3 = list(np.array(arrays[2]))
+prob = np.ones(len(scenarios))/len(scenarios)
 
-W2 = [arr1, arr3]
-probabilities = np.ones(len(scenarios))/len(scenarios)
-S = scen_red.ScenarioReduction(W2, probabilities=probabilities, cost_func='2norm', r = 2, scen0 = np.zeros(2))
+# price_path = np.array([arr1, arr2])
+# gen_path = np.array([arr3, arr4])
+# S_price = scen_red.ScenarioReduction(price_path, probabilities=prob, cost_func='2norm', r = 2, scen0 = np.zeros(10))
+# S_price.fast_forward_sel(n_sc_red=100, num_threads = 4)
+# scen_price_red = S_price.scenarios_reduced  # get reduced scenarios
+# prob_price_red = S_price.probabilities_reduced  # get reduced probabilities
 
+W_1 = np.array([arr1,arr3]) #idea: 일단 P_da, Q_da를 묶고 나머지 P_rt, Q_c는 각 분기마다 5개정도로?
+num_W_1 = 20
+S_1 = scen_red.ScenarioReduction(W_1, probabilities=prob, cost_func='2norm', r = 2, scen0 = np.zeros(10))
+S_1.fast_forward_sel(n_sc_red=num_W_1, num_threads = 4)
+W_1_red = S_1.scenarios_reduced  # get reduced scenarios
+prob_1_red = S_1.probabilities_reduced 
+
+
+W_2 = np.array([arr2,arr4]) #idea: 일단 P_da, Q_da를 묶고 나머지 P_rt, Q_c는 각 분기마다 5개정도로?
+num_W_2 = 5
+S_2 = scen_red.ScenarioReduction(W_2, probabilities=prob, cost_func='2norm', r = 2, scen0 = np.zeros(10))
+S_2.fast_forward_sel(n_sc_red=num_W_2, num_threads = 4)
+W_2_red = S_2.scenarios_reduced  # get reduced scenarios
+prob_2_red = S_2.probabilities_reduced 
+
+scenarios_red = []
+probabilities_red = []
+for i in range(num_W_1):
+    for j in range(num_W_2):
+        scenario = (W_1_red[0][i], W_2_red[0][j], W_1_red[1][i], W_2_red[1][j])
+        scenarios_red.append(scenario)
+        probability = prob_1_red[i]*prob_2_red[j]
+        probabilities_red.append(probability)
 
 '''
 # scenarios2 = np.random.rand(10,30)  # Create 30 random scenarios of length 10. 
@@ -271,7 +302,7 @@ probabilities_reduced = S.probabilities_reduced  # get reduced probabilities
 
 
 
-model, res = solve_sp_model(scenarios, new_E_0_values[1])
+model, res = solve_sp_model(scenarios_red, probabilities_red, new_E_0_values[1])
 
 scenarios[1]
 print(scenarios)
