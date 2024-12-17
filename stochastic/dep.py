@@ -18,9 +18,9 @@ from sklearn.mixture import GaussianMixture
 from scipy.stats import bernoulli
 from scipy.stats import gaussian_kde
 import seaborn as sns
-from sklearn.linear_model import LinearRegression
+# from sklearn.linear_model import LinearRegression
 import scipy.stats as stats
-import random
+# import random
 from scipy.stats import gaussian_kde, multivariate_normal
 import time
 import re
