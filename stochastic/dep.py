@@ -195,7 +195,6 @@ def build_model(scenarios, probabilities, E_0):
             if scenarios[i][0] == scenarios[j][0] and scenarios[i][2] == scenarios[j][2]:
                 model.constrs.add(model.b_rt[i] == model.b_rt[j])
                 model.constrs.add(model.q_rt[i] == model.q_rt[j])  
-                nonanti_scen_list.append(i)
     # Objective Function
     def objective_rule(model):
         return sum(model.prob[s]*((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * P_r)) for s in model.scenarios)
