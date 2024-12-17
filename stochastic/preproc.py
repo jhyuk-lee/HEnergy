@@ -513,7 +513,7 @@ def regenerate_scenarios(new_E_0, sample_size):
     # print(original_price_df)
 
 
-    E_1_df = pd.read_csv(str(curr_dir) + '\\jeju_estim.csv')
+    E_1_df = pd.read_csv(str(curr_dir) + '/jeju_estim.csv')
     E_1_df['timestamp'] = pd.to_datetime(E_1_df['timestamp'])
     E_1_df['timestamp'] = E_1_df['timestamp'].dt.tz_localize(None)
     E_1_df.rename(columns={'forecast_da': 'E_0', 'forecast_rt': 'E_1', 'timestamp': 'date'}, inplace=True)
