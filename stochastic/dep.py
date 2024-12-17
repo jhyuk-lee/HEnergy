@@ -194,7 +194,7 @@ def build_model(scenarios, probabilities, E_0):
         for j in range(i + 1, num_scenarios):
             if scenarios[i][0] == scenarios[j][0] and scenarios[i][2] == scenarios[j][2]:
                 model.constrs.add(model.b_rt[i] == model.b_rt[j])
-                model.constrs.add(model.q_rt[i] == model.q_rt[j])  
+                model.constrs.add(model.q_rt[i] == model.q_rt[j])  #SW: 의미없음. 어차피 q_rt는 E_1 고정이니까 있으나마나한 제약식. 어차피 presolve단계에서 사라지긴할듯
     # Objective Function
     def objective_rule(model):
         return sum(model.prob[s]*((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * P_r)) for s in model.scenarios)
