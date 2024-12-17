@@ -1,7 +1,7 @@
 ﻿import sys
 import os
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # 부모의 부모 디렉토리 추가
-import scenred.scenario_reduction
+import scenred.scenario_reduction as scen_red
 import pyomo.environ as pyo
 import numpy as np
 import pandas as pd
@@ -33,6 +33,8 @@ import preproc
 
 # preproc.generate_scenarios()
 # 최적화 모델 생성
+
+
 
 def build_model(scenarios, E_0):
     model = pyo.ConcreteModel()
@@ -237,9 +239,38 @@ M = 10**6
 
 new_E_0_values = [10000, 8000, 12000]
 
-scenarios = preproc.regenerate_scenarios(new_E_0_values[1], sample_size=10)
+scenarios = preproc.regenerate_scenarios(new_E_0_values[1], sample_size=100)
 for scen in scenarios:
     print(scen)
+
+
+arrays = list(zip(*scenarios))
+
+arr1 = list(np.array(arrays[0]))
+arr3 = list(np.array(arrays[2]))
+
+W2 = [arr1, arr3]
+probabilities = np.ones(len(scenarios))/len(scenarios)
+S = scen_red.ScenarioReduction(W2, probabilities=probabilities, cost_func='2norm', r = 2, scen0 = np.zeros(2))
+
+
+'''
+# scenarios2 = np.random.rand(10,30)  # Create 30 random scenarios of length 10. 
+### Seokwoo: scenarios의 길이는 10개고 각 array에 30개 scenario 존재. 
+### 즉, 시나리오 1은 scenarios2[:,0], 시나리오 2는 scenarios2[:,1]을 의미
+probabilities = np.random.rand(30)
+probabilities = probabilities/np.sum(probabilities)  # Create random probabilities of each scenario and normalize 
+
+S = scen_red.ScenarioReduction(scenarios2, probabilities=probabilities, cost_func='2norm', r = 2, scen0 = np.zeros(10))
+S.fast_forward_sel(n_sc_red=5, num_threads = 4)  # use fast forward selection algorithm to reduce to 5 scenarios with 4 threads 
+scenarios_reduced = S.scenarios_reduced  # get reduced scenarios
+probabilities_reduced = S.probabilities_reduced  # get reduced probabilities
+'''
+
+
+
+
+
 model, res = solve_sp_model(scenarios, new_E_0_values[1])
 
 scenarios[1]

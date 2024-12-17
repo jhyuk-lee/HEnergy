@@ -152,7 +152,7 @@ def regenerate_scenarios_with_streaming(filtered_df, kde, new_E_0, E_0_values, E
     # all_scenarios = itertools.product(P_da_samples, P_rt_samples, E_1_scenarios, random_factors)
 
     reservoir = []
-
+    random_factors = np.random.choice(random_factors, sample_size)
     reservoir = [(P_da_samples[i], P_rt_samples[i],
                   E_1_scenarios[i], random_factors[i]) for i in range(sample_size)]
     
