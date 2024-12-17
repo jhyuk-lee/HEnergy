@@ -189,7 +189,6 @@ def build_model(scenarios, probabilities, E_0):
     for s in model.scenarios:
         scenario_constraints(model, s)
 
-    nonanti_scen_list = []
     # Non-anticipativity constraints
     for i in range(num_scenarios):
         for j in range(i + 1, num_scenarios):
@@ -197,7 +196,6 @@ def build_model(scenarios, probabilities, E_0):
                 model.constrs.add(model.b_rt[i] == model.b_rt[j])
                 model.constrs.add(model.q_rt[i] == model.q_rt[j])  
                 nonanti_scen_list.append(i)
-    model.nonanti_scen = pyo.Set(initialize=nonanti_scen_list) #model에 저장
     # Objective Function
     def objective_rule(model):
         return sum(model.prob[s]*((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * P_r)) for s in model.scenarios)
