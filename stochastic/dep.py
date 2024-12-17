@@ -1,5 +1,6 @@
 ﻿import sys
 import os
+import networkx as nx
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # 부모의 부모 디렉토리 추가
 import scenred.scenario_reduction as scen_red
 import pyomo.environ as pyo
@@ -233,6 +234,68 @@ def solve_sp_model(scenarios, probabilities, new_E_0):
         })
 
     return model, pd.DataFrame(results)
+def create_weighted_tree(W_1_red, W_2_red):
+    G = nx.DiGraph()
+    
+    # 루트 노드 추가
+    G.add_node('root')
+    
+    # 노드 라벨 딕셔너리 생성
+    labels = {'root': 'root'}
+    
+    # 첫 번째 레벨 노드 생성 (20개)
+    for i in range(len(W_1_red[0])):
+        node_name = f'L1_{i}'
+        node_values = [W_1_red[0][i], W_1_red[1][i]]
+        G.add_node(node_name, values=node_values)
+        G.add_edge('root', node_name)
+        # 라벨에 값 추가 (소수점 1자리까지 표시)
+        labels[node_name] = f'[{node_values[0]:.1f},\n{node_values[1]:.1f}]'
+        
+        # 각 첫 번째 레벨 노드에 대해 5개의 자식 노드 생성
+        for j in range(len(W_2_red[0])):
+            child_name = f'L2_{i}_{j}'
+            child_values = [W_2_red[0][j], W_2_red[1][j]]
+            G.add_node(child_name, values=child_values)
+            G.add_edge(node_name, child_name)
+            # 라벨에 값 추가
+            labels[child_name] = f'{child_name}\n[{child_values[0]:.1f},\n{child_values[1]:.1f}]'
+    
+    plt.figure(figsize=(25, 15))
+    
+    # 수평 레이아웃을 위한 포지션 계산
+    pos = {}
+    
+    # 루트 노드 위치 설정
+    pos['root'] = np.array([0, 0])
+    
+    # 첫 번째 레벨 노드들의 위치 설정
+    level1_y = np.linspace(-8, 8, 20)  # 20개 노드를 위한 y 좌표
+    for i, y in enumerate(level1_y):
+        pos[f'L1_{i}'] = np.array([2, y])
+    
+    # 두 번째 레벨 노드들의 위치 설정
+    for i in range(20):
+        level2_y = np.linspace(level1_y[i] - 0.4, level1_y[i] + 0.4, 5)
+        for j, y in enumerate(level2_y):
+            pos[f'L2_{i}_{j}'] = np.array([4, y])
+    
+    # 노드 그리기
+    nx.draw_networkx_nodes(G, pos, 
+                          node_color='lightblue',
+                          node_size=2000)  # 노드 크기 증가
+    
+    # 엣지 그리기
+    nx.draw_networkx_edges(G, pos, arrows=True)
+    
+    # 노드 라벨 그리기 (값 포함)
+    nx.draw_networkx_labels(G, pos, labels, font_size=6)
+    
+    plt.title("Horizontal Weighted Tree Visualization with Values")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
 
 P_r = 80
 C = 18330.6
@@ -303,6 +366,7 @@ probabilities_reduced = S.probabilities_reduced  # get reduced probabilities
 
 
 model, res = solve_sp_model(scenarios_red, probabilities_red, new_E_0_values[1])
+tree = create_weighted_tree(W_1_red, W_2_red)
 
 scenarios[1]
 print(scenarios)
