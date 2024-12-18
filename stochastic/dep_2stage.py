@@ -2,6 +2,8 @@
 import os
 import networkx as nx
 sys.path.append(os.path.dirname(os.path.dirname(__file__)))  # 부모의 부모 디렉토리 추가
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import scenred.scenario_reduction as scen_red
 import pyomo.environ as pyo
 import numpy as np
@@ -369,7 +371,7 @@ for num in [60]:
     S_2.fast_forward_sel(n_sc_red=num_W_2, num_threads = 4) #scenario reduction
     W_2_red = S_2.scenarios_reduced  # get reduced scenarios
     prob_2_red = S_2.probabilities_reduced 
-    # W_2_red = 
+    # W_2_red = array([[-0.2., 1., 1.2]]) , prob_2_red = array([0.998, 0.001, 0.001])
     scenarios_red = []
     probabilities_red = []
     for i in range(num_W_1):
