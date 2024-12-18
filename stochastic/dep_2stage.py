@@ -46,11 +46,11 @@ def build_model(scenarios, probabilities, E_0):
 
     # Parameters
     model.E_0 = pyo.Param(initialize=E_0, mutable=True)
-
+    model.P_r = P_r
     num_scenarios = len(scenarios)
 
     # First-stage decision variables
-    model.b_da = pyo.Var(bounds=(-P_r, 0), domain=pyo.Reals, initialize = -P_r / 2)
+    model.b_da = pyo.Var(bounds=(-model.P_r, 0), domain=pyo.Reals, initialize = -P_r / 2)
     model.q_da = pyo.Var(domain=pyo.Reals, bounds=(0.9*E_0, 1.1*E_0), initialize = E_0)
     model.v_1 = pyo.Var(domain=pyo.Reals, bounds = (-10**2, 10**2 ))
     model.v_0 = pyo.Var(domain=pyo.Reals, bounds = (-10**2, 10**2))
@@ -65,13 +65,14 @@ def build_model(scenarios, probabilities, E_0):
     # Second-stage decision variables
     def q_rt_bounds(model, s):
         return model.E_1[s] #q_rt는 항상 E_1
-    model.b_rt = pyo.Var(model.scenarios, bounds=(-P_r, 0), domain=pyo.Reals, initialize = - P_r / 2) #TODO: 여기 bounds 오른쪽에 b_da 넣어야하는거 아님?
+    model.b_rt = pyo.Var(model.scenarios, bounds=(-model.P_r, 0), domain=pyo.Reals, initialize = - P_r / 2) #TODO: 여기 bounds 오른쪽에 b_da 넣어야하는거 아님?
     model.q_rt = pyo.Var(model.scenarios, bounds=q_rt_bounds, domain=pyo.Reals, initialize=lambda model, s: model.E_1[s])
 
     # Scenario-specific binary variables
     model.y_da = pyo.Var(model.scenarios, domain=pyo.Binary)
     model.y_rt = pyo.Var(model.scenarios, domain=pyo.Binary)
-
+    model.a_da = pyo.Var(model.scenarios, domain=pyo.Binary) #If b_da - P_da <= 0, then a_da = 
+    model.a_rt = pyo.Var(model.scenarios, domain=pyo.Binary)
     # Scenario-specific analysis variables
     model.Q_da = pyo.Var(model.scenarios, domain=pyo.NonNegativeReals, initialize= model.q_da / 2)
     model.Q_rt = pyo.Var(model.scenarios, domain=pyo.NonNegativeReals, initialize=lambda model, s: model.q_rt[s] / 2)
@@ -99,7 +100,8 @@ def build_model(scenarios, probabilities, E_0):
     model.f_max = pyo.Var(model.scenarios, domain=pyo.Reals)
 
     # Linearization Binary Variables (Scenario-specific)
-    model.n1_V = pyo.Var(model.scenarios, domain=pyo.Binary) #TODO: 이렇게 하는게 아니라 그냥 벡터로 선언해서 indexing하면 되잖아.
+    model.J_3 = pyo.Set(initialize=range(3))
+    model.n1_V = pyo.Var(model.scenarios, model.J_3, domain=pyo.Binary) #Todo: J_3는 3개 값.
     model.n2_V = pyo.Var(model.scenarios, domain=pyo.Binary)
     model.n1_E = pyo.Var(model.scenarios, domain=pyo.Binary)
     model.n2_E = pyo.Var(model.scenarios, domain=pyo.Binary)
@@ -113,20 +115,38 @@ def build_model(scenarios, probabilities, E_0):
     model.n3_F = pyo.Var(model.scenarios, domain=pyo.Binary)
 
     # Constraints
+
     model.constrs = pyo.ConstraintList()
+    # model.constrs.add(model.b_da == -model.P_r)
     def scenario_constraints(model, s):
 
-        model.constrs.add(model.b_da - model.P_da[s] <= M * (1 - model.y_da[s]))
-        model.constrs.add(model.q_da <= M * model.y_da[s])
-        model.constrs.add(model.Q_da[s] <= model.q_da)
-        model.constrs.add(model.q_da - M * (1 - model.y_da[s]) <= model.Q_da[s])
-                                                          ## TODO: 이러면 만약 내가 q_da를 양수로 입찰하면 무조건 y_da = 1
-                                                          ## 그러면 b_da <= P_da[s] for all s -> b_da <= minimum(P_da[s])= -77
-        model.constrs.add(model.b_rt[s] - model.P_rt[s] <= M * (1 - model.y_rt[s])) 
-        model.constrs.add(model.q_rt[s] <= M * model.y_rt[s])
-        model.constrs.add(model.q_rt[s] - M * (1 - model.y_rt[s]) <= model.Q_rt[s])
-        model.constrs.add(model.Q_rt[s] <= model.q_rt[s]) ## TODO: ???? 이러면 y_rt =0 -> E_1 = Q_rt <= q_rt = 0 돼서 절대 y_rt가 0이 안되는데
-                                                          ## TODO: 애초에 y_rt가 제대로 된 logical implication 기능을 함?
+        model.constrs.add(model.b_da - model.P_da[s] <= model.P_r*(1-model.a_da[s])) ## b_da - P_da <= M*(1-a_da)
+        model.constrs.add(model.b_da - model.P_da[s] >= -1*model.P_r*(model.a_da[s])) ## b_da - P_da >= -M*a_da
+
+        model.constrs.add(-1*(1-model.a_da[s]) <= model.y_da[s] - 1) ## -1*(1-a_da) <= y_da - 1 <= 1- a_da 
+        model.constrs.add(model.y_da[s]-1 <= 1-model.a_da[s]) 
+        model.constrs.add(-1*model.a_da[s] <= model.y_da[s]) ## -a_da <= y_da <= a_da
+        model.constrs.add(model.y_da[s] <= model.a_da[s])
+
+        model.constrs.add(model.Q_da[s] <= M * model.y_da[s]) ## Q_da <= M*(y_da)
+        model.constrs.add(-1*M*model.y_da[s] <= model.Q_da[s]) ## -M*y_da <= Q_da 
+        model.constrs.add(model.Q_da[s] <= model.q_da + M*(1-model.y_da[s]))  ## Q_da <= q_da + M*(1-y_da)
+        model.constrs.add(model.q_da - M*(1-model.y_da[s]) <= model.Q_da[s]) ## q_da - M*(1-y_da) <= Q_da
+
+        ###
+        model.constrs.add(model.b_rt[s] - model.P_rt[s] <= model.P_r*(1-model.a_rt[s]))
+        model.constrs.add(model.b_rt[s] - model.P_rt[s] >= -1*model.P_r*(model.a_rt[s]))
+        
+        model.constrs.add(-1*(1-model.a_rt[s]) <= model.y_rt[s] - 1)
+        model.constrs.add(model.y_rt[s]-1 <= 1-model.a_rt[s])
+        model.constrs.add(-1*model.a_rt[s] <= model.y_rt[s])
+        model.constrs.add(model.y_rt[s] <= model.a_rt[s])
+
+        model.constrs.add(model.Q_rt[s] <= M * model.y_rt[s])
+        model.constrs.add(-1*M*model.y_rt[s] <= model.Q_rt[s])
+        model.constrs.add(model.Q_rt[s] <= model.q_rt[s] + M*(1-model.y_rt[s]))
+        model.constrs.add(model.q_rt[s] - M*(1-model.y_rt[s]) <= model.Q_rt[s])
+        
         # Rule constraint
         model.constrs.add(model.Q_c[s] == model.random_factor[s] * model.Q_rt[s])
         model.constrs.add(model.b_rt[s] <= model.b_da)
@@ -135,9 +155,12 @@ def build_model(scenarios, probabilities, E_0):
         model.constrs.add(model.S1_V[s] == model.b_rt[s] * model.m1_V[s] - model.Q_da[s] * model.P_da[s] - model.m1_V[s] * model.P_rt[s] + model.P_rt[s] * model.Q_da[s])
     
         model.constrs.add(model.m1_V[s] <= model.z[s])
-        model.constrs.add(model.m1_V[s] <= model.Q_c[s]) #TODO: m1_V[s] <= model.q_rt[s]는? 
-        model.constrs.add(model.m1_V[s] >= model.z[s] - M * (1 - model.n1_V[s])) 
-        model.constrs.add(model.m1_V[s] >= model.Q_c[s] - M * model.n1_V[s]) #TODO: Q_c가 아니라 q_rt아니야? 그리고 binary 총 3개 아니야? 
+        model.constrs.add(model.m1_V[s] <= model.Q_c[s])
+        model.constrs.add(model.m1_V[s] <= model.q_rt[s]) #TODO: m1_V[s] <= model.q_rt[s]는? 
+        model.constrs.add(model.m1_V[s] >= model.z[s] - M * (1 - model.n1_V[s,0])) 
+        model.constrs.add(model.m1_V[s] >= model.Q_c[s] - M * model.n1_V[s,1])  
+        model.constrs.add(model.m1_V[s] >= model.q_rt[s] - M * model.n1_V[s,2]) #TODO: q_rt추가 
+        model.constrs.add(sum(model.n1_V[s,:]) == 1.0) # 세 변수 합은 1
 
         model.constrs.add(model.m2_V[s] >= model.S1_V[s]) #이거 이름을 꼭 m2_V로 해야 함? f_V로 하면 안됨?
         model.constrs.add(model.m2_V[s] >= 0)
@@ -155,8 +178,8 @@ def build_model(scenarios, probabilities, E_0):
         model.constrs.add(model.m2_E[s] >= model.z[s] - M * (1 - model.n2_E[s]))
         model.constrs.add(model.m2_E[s] >= model.q_rt[s] - M * model.n2_E[s])
   
-        model.constrs.add(model.f_E[s] >= (model.P_rt[s] - model.b_da) * model.m1_E[s] - M * (1 - model.n3_E[s])) ##TODO: 이건 무슨 의미?
-        model.constrs.add(model.f_E[s] <= (model.P_rt[s] - model.b_da) * model.m2_E[s] + M * model.n3_E[s]) ##TODO: 이건 무슨 의미?
+        # model.constrs.add(model.f_E[s] >= (model.P_rt[s] - model.b_da) * model.m1_E[s] - M * (1 - model.n3_E[s])) ##TODO: 이건 무슨 의미?
+        # model.constrs.add(model.f_E[s] <= (model.P_rt[s] - model.b_da) * model.m2_E[s] + M * model.n3_E[s]) ##TODO: 이건 무슨 의미?
         model.constrs.add(model.f_E[s] == (model.P_rt[s] - model.b_da) * (model.m1_E[s] - model.m2_E[s]))
         
         # f_Im Linearization constraints
@@ -204,7 +227,7 @@ def build_model(scenarios, probabilities, E_0):
                 model.constrs.add(model.q_rt[i] == model.q_rt[j])  #SW: 의미없음. 어차피 q_rt는 E_1 고정이니까 있으나마나한 제약식. 어차피 presolve단계에서 사라지긴할듯
     # Objective Function
     def objective_rule(model):
-        return sum(model.prob[s]*((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * P_r)) for s in model.scenarios)
+        return sum(model.prob[s]*((model.P_da[s] * model.Q_da[s] + model.P_rt[s] * (model.z[s] - model.Q_da[s])) + model.f_max[s] + (-model.m1_Im[s] * model.m4_Im[s]) + (model.z[s] * model.P_r)) for s in model.scenarios)
 
     model.objective = pyo.Objective(rule=objective_rule, sense=pyo.maximize)
 
@@ -214,7 +237,7 @@ def calculate_profit(model, idx):
         pyo.value(model.P_da[idx]) * pyo.value(model.Q_da[idx]) +
         pyo.value(model.P_rt[idx]) * (pyo.value(model.z[idx]) - pyo.value(model.Q_da[idx])) +
         pyo.value(model.f_max[idx]) - (pyo.value(model.m1_Im[idx]) * pyo.value(model.m4_Im[idx])) +
-        pyo.value(model.z[idx]) * P_r
+        pyo.value(model.z[idx]) * model.P_r
     )
 def solve_sp_model(scenarios, probabilities, new_E_0):
     model = build_model(scenarios, probabilities, new_E_0)
@@ -233,6 +256,9 @@ def solve_sp_model(scenarios, probabilities, new_E_0):
             "q_da": pyo.value(model.q_da),
             "b_rt": pyo.value(model.b_rt[s]),
             "q_rt": pyo.value(model.q_rt[s]),
+            "P_da" : pyo.value(model.P_da[s]),
+            "Q_da": pyo.value(model.Q_da[s]),
+            "Q_c" : pyo.value(model.Q_c[s]),
             "z": pyo.value(model.z[s]),
             "Profit": profit,
             "prob": pyo.value(model.prob[s])
@@ -305,7 +331,7 @@ def create_weighted_tree(W_1_red, W_2_red):
 
 new_E_0_values = [10000, 8000, 12000]
 
-seed = 15
+seed = 42
 
 scenarios = preproc.regenerate_scenarios(new_E_0_values[1], sample_size=1000, seed =seed)
 
@@ -328,27 +354,27 @@ prob = np.ones(len(scenarios))/len(scenarios)
 # prob_price_red = S_price.probabilities_reduced  # get reduced probabilities
 
 optim_list = {}
-for num in [20,30,40,50,60,70,90]:
-    W_1 = np.array([arr1,arr3]) #idea: 일단 P_da, Q_da를 묶고 나머지 P_rt, Q_c는 각 분기마다 5개정도로?
+for num in [60]:
+    W_1 = np.array([arr1,arr2,arr3]) #idea: 일단 P_da, Q_da를 묶고 나머지 P_rt, Q_c는 각 분기마다 5개정도로?
     num_W_1 = num #최소 >=40 부터 덜 sensitive해지는듯
     S_1 = scen_red.ScenarioReduction(W_1, probabilities=prob, cost_func='2norm', r = 2, scen0 = np.zeros(10))
-    S_1.fast_forward_sel(n_sc_red=num_W_1, num_threads = 4)
+    S_1.fast_forward_sel(n_sc_red=num_W_1, num_threads = 4) #scenario reduction
     W_1_red = S_1.scenarios_reduced  # get reduced scenarios
     prob_1_red = S_1.probabilities_reduced 
 
 
-    W_2 = np.array([arr2,arr4]) #idea: 일단 P_da, Q_da를 묶고 나머지 P_rt, Q_c는 각 분기마다 5개정도로?
-    num_W_2 = 5
+    W_2 = np.array([arr4]) #idea: 일단 P_da, Q_da를 묶고 나머지 P_rt, Q_c는 각 분기마다 5개정도로?
+    num_W_2 = 3
     S_2 = scen_red.ScenarioReduction(W_2, probabilities=prob, cost_func='2norm', r = 2, scen0 = np.zeros(10))
-    S_2.fast_forward_sel(n_sc_red=num_W_2, num_threads = 4)
+    S_2.fast_forward_sel(n_sc_red=num_W_2, num_threads = 4) #scenario reduction
     W_2_red = S_2.scenarios_reduced  # get reduced scenarios
     prob_2_red = S_2.probabilities_reduced 
-
+    # W_2_red = 
     scenarios_red = []
     probabilities_red = []
     for i in range(num_W_1):
         for j in range(num_W_2):
-            scenario = (W_1_red[0][i], W_2_red[0][j], W_1_red[1][i], W_2_red[1][j])
+            scenario = (W_1_red[0][i], W_1_red[1][i], W_1_red[2][i], W_2_red[0][j])
             scenarios_red.append(scenario)
             probability = prob_1_red[i]*prob_2_red[j]
             probabilities_red.append(probability)
@@ -376,6 +402,6 @@ for num in [20,30,40,50,60,70,90]:
 
 tree = create_weighted_tree(W_1_red, W_2_red)
 
-scenarios[1]
+# scenarios[1]
 print(scenarios)
 
