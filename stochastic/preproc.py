@@ -43,7 +43,7 @@ def process_rt_file(file_path):
 def generate_price_scenarios(filtered_df, N_price, seed=None):
     # if seed:
     # np.random.RandomState(seed)
-    
+    np.random.RandomState(seed)
     P_da_distribution = filtered_df['P(da)'].tolist()
     P_rt_distribution = filtered_df['P(rt)'].tolist()
 
@@ -64,8 +64,8 @@ def generate_price_scenarios(filtered_df, N_price, seed=None):
     return P_da_final, P_rt_final
 
 # 발전량 시나리오 생성 함수
-def generate_E_1_scenarios(N_E1, kde, E_0, E_0_values, E_1_values):
-    # np.random.RandomState(seed) # seed 고정
+def generate_E_1_scenarios(N_E1, kde, E_0, E_0_values, E_1_values,seed=None):
+    np.random.RandomState(seed) # seed 고정
     E_0_min, E_0_max = E_0_values.min(), E_0_values.max()
     E_0_range = E_0_max - E_0_min 
 
@@ -84,8 +84,8 @@ def generate_E_1_scenarios(N_E1, kde, E_0, E_0_values, E_1_values):
 
 
 # 급전지시량 시나리오 생성 함수
-def generate_random_factor_scenarios(N_Qc=10, mean=1.0, std_dev=0.2):
-    # np.random.RandomState(seed)
+def generate_random_factor_scenarios(N_Qc=10, mean=1.0, std_dev=0.2, seed=None):
+    np.random.RandomState(seed)
     num_ones = int(0.9 * N_Qc)
     ones = [1.0] * num_ones
 
@@ -140,11 +140,12 @@ def generate_scenarios_with_streaming(filtered_df, N_E1, N_price, kde, E_0, E_0_
     return reservoir
 
 def regenerate_scenarios_with_streaming(filtered_df, kde, new_E_0, E_0_values, E_1_values, N_price, N_E1, sample_size):
-    P_da_samples, P_rt_samples = generate_price_scenarios(filtered_df, N_price)
+    
+    P_da_samples, P_rt_samples = generate_price_scenarios(filtered_df, N_price, seed)
 
-    E_1_scenarios = generate_E_1_scenarios(N_E1, kde, new_E_0, E_0_values, E_1_values)
+    E_1_scenarios = generate_E_1_scenarios(N_E1, kde, new_E_0, E_0_values, E_1_values, seed)
 
-    random_factors = generate_random_factor_scenarios()
+    random_factors = generate_random_factor_scenarios(seed=seed)
 
     # da_indices = np.random.randint(0, N_price, sample_size)
     # rt_indices = np.random.randint(0, N_price, sample_size)
