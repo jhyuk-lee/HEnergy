@@ -119,11 +119,11 @@ def generate_scenarios_with_streaming(filtered_df, N_E1, N_price, kde, E_0, E_0_
         샘플링된 시나리오 리스트 [(P_da, P_rt, E_1, random_factor), ...]
     """
 
-    P_da_samples, P_rt_samples = generate_price_scenarios(filtered_df, N_price)
+    P_da_samples, P_rt_samples = generate_price_scenarios(filtered_df, N_price, seed)
 
-    E_1_scenarios = generate_E_1_scenarios(N_E1, kde, E_0, E_0_values, E_1_values)
+    E_1_scenarios = generate_E_1_scenarios(N_E1, kde, E_0, E_0_values, E_1_values, seed)
     
-    random_factors = generate_random_factor_scenarios()
+    random_factors = generate_random_factor_scenarios(seed)
 
     all_scenarios = itertools.product(P_da_samples, P_rt_samples, E_1_scenarios, random_factors)
 
@@ -185,6 +185,12 @@ def generate_all_scenarios():
     csv_files_da = [f for f in os.listdir(directory_path_da) if f.endswith('.csv')]
     csv_files_rt = [f for f in os.listdir(directory_path_rt) if f.endswith('.csv')]
 
+    ### 일부 컴퓨터에선 csv_files 리스트가 날짜순으로 자동 정렬되지 않음
+    ### 따라서 아래 match를 da_file 기준으로 할 때 rt_file이 동일한 날짜 페어가 선택되지 않음.
+    ### da_file은 3/1일인데 rt_file은 3/29일이 선택되는 버그
+    csv_files_da = sorted(csv_files_da, key=lambda x: datetime.strptime(x.split('_')[1], '%Y%m%d'))
+    csv_files_rt = sorted(csv_files_rt, key=lambda x: datetime.strptime(x.split('_')[1], '%Y%m%d'))
+
     data = []
 
     for da_file, rt_file in zip(csv_files_da, csv_files_rt):
@@ -203,6 +209,7 @@ def generate_all_scenarios():
 
     original_price_df = pd.DataFrame(data)
     # global original_price_df
+    original_price_df = original_price_df.sort_values('timestamp',ascending=True).reset_index(drop=True)
     print(original_price_df)
 
 
@@ -493,6 +500,13 @@ def regenerate_scenarios(new_E_0, sample_size):
     csv_files_da = [f for f in os.listdir(directory_path_da) if f.endswith('.csv')]
     csv_files_rt = [f for f in os.listdir(directory_path_rt) if f.endswith('.csv')]
 
+    ### 일부 컴퓨터에선 csv_files 리스트가 날짜순으로 자동 정렬되지 않음
+    ### 따라서 아래 match를 da_file 기준으로 할 때 rt_file이 동일한 날짜 페어가 선택되지 않음.
+    ### da_file은 3/1일인데 rt_file은 3/29일이 선택되는 버그
+    csv_files_da = sorted(csv_files_da, key=lambda x: datetime.strptime(x.split('_')[1], '%Y%m%d'))
+    csv_files_rt = sorted(csv_files_rt, key=lambda x: datetime.strptime(x.split('_')[1], '%Y%m%d'))
+
+
     data = []
 
     for da_file, rt_file in zip(csv_files_da, csv_files_rt):
@@ -507,11 +521,11 @@ def regenerate_scenarios(new_E_0, sample_size):
             for hour in range(24):
                 timestamp = date + timedelta(hours=hour)
                 data.append({'P(da)': day_ahead_data[hour], 'P(rt)': real_time_data[hour], 'timestamp': timestamp})
-                # print(data)
 
     original_price_df = pd.DataFrame(data)
+    original_price_df = original_price_df.sort_values('timestamp',ascending=True).reset_index(drop=True)
     # global original_price_df
-    # print(original_price_df)
+    print(original_price_df)
 
 
     E_1_df = pd.read_csv(str(curr_dir) + '/jeju_estim.csv')
