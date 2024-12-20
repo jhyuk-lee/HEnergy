@@ -284,7 +284,7 @@ def create_weighted_tree(W_1_red, W_2_red):
         G.add_edge('root', node_name)
         # 라벨에 값 추가 (소수점 1자리까지 표시)
         labels[node_name] = f'[{node_values[0]:.1f},\n{node_values[1]:.1f}]'
-        
+        d
         # 각 첫 번째 레벨 노드에 대해 5개의 자식 노드 생성
         for j in range(len(W_2_red[0])):
             child_name = f'L2_{i}_{j}'
